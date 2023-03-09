@@ -115,6 +115,10 @@ class Orthogonal_poly(ABC):
         snorm_n = self.ortho_factor(n)
         an = quad(lambda t: x(t)*P_n(t)*self.weight(t), self.x1, self.x2)[0]/snorm_n
         return an
+    
+    def ploy2path(self, x, N, t_grid):
+        poly_map = lambda t: sum([self.a(x, n)*self.P(n)(t) for n in range(N+1)])
+        return poly_map(t_grid)
 
     def l(self, n):
         if n==0:
@@ -143,10 +147,6 @@ class Orthogonal_poly(ABC):
     def sig2path(self, sig, N, t_grid):
         sig_map =  lambda t: sum([self.a_sig(sig, n)*self.P(n)(t) for n in range(N+1)])
         return sig_map(t_grid) / self.weight(t_grid)
-
-    def ploy2path(self, x, N, t_grid):
-        poly_map = lambda t: sum([self.a(x, n)*self.P(n)(t) for n in range(N+1)])
-        return poly_map(t_grid)
 
 
 class Jacobi(Orthogonal_poly):
@@ -215,11 +215,13 @@ class Chebyshev(Jacobi):
 
 
 class Hermite(Orthogonal_poly):
-    def __init__(self, t0, eps):
-        super().__init__(-np.inf, np.inf)
+    def __init__(self, t0, eps, start_poiint=None):
+        if start_poiint is None:
+            start_poiint = -np.inf
+        super().__init__(start_poiint, np.inf)
         self.t0 = t0
         self.eps = eps
-        self.weight = lambda t: math.exp(-(t-t0)**2/2/eps**2)
+        self.weight = lambda t: np.exp(-(t-t0)**2/2/eps**2)
 
     def P(self, n):
         return lambda t: math.factorial(n)*sum([(-1)**m*((t-self.t0)/self.eps)**(n-2*m)/2**m/math.factorial(m)/math.factorial(n-2*m) for m in range(n//2+1)])
@@ -228,6 +230,10 @@ class Hermite(Orthogonal_poly):
         return math.sqrt(2*math.pi)*self.eps*math.factorial(n)
     
     def recurrence(self, n):
+        if n == 0:
+            return 1
+        elif n == 1:
+            return 1/self.eps, -self.t0/self.eps
         return 1/self.eps, -self.t0/self.eps, -n
 
 
