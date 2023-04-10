@@ -2,6 +2,7 @@ import numpy as np
 from torch.utils.data import Dataset
 from fbm import FBM
 import iisignature
+# esig.stream2sig
 import math
 from math import gamma
 from scipy.integrate import quad
@@ -234,7 +235,12 @@ class Hermite(Orthogonal_poly):
             return 1
         elif n == 1:
             return 1/self.eps, -self.t0/self.eps
-        return 1/self.eps, -self.t0/self.eps, -n
+        An, Bn, Cn = 1/self.eps, -self.t0/self.eps, -n+1
+        # check recurrence relation of Hermite polynomial
+        # P = self.P
+        # grid = np.random.uniform(-1, 1, 30)
+        # assert(np.linalg.norm(P(n)(grid)-(An*grid+Bn)*P(n-1)(grid)-Cn*P(n-2)(grid))<1.0e-6)
+        return An, Bn, Cn
 
 
 class Fourier():
