@@ -17,12 +17,18 @@ def fbm_generator(sample_num, n, hurst):
         data[i] = f.fbm()
     return data
 
-def rand_sin_generator(sample_num, n, rand_num=20, average=True):
+def rand_sin_generator(sample_num, n, path='high_freq', average=False):
     data = np.zeros((sample_num, n))
     for i in range(sample_num):
-        coef = np.random.randn(rand_num) * 5
+        # coef = np.random.randn(rand_num) * 5
         # coef = np.random.randint(1, 10, size=rand_num) * np.pi
-        data[i] = np.sum(np.sin(np.outer(coef, np.linspace(0, 1, n))), axis=0)
+        if path == 'high_freq':
+            coef = np.random.normal(np.random.uniform(10, 30), np.random.uniform(5, 10), size=np.random.randint(5, 20))
+            data[i] = np.sum(np.sin(np.outer(coef, np.linspace(-1, 1, n))), axis=0) - data[i, 0]
+        elif path == 'low_freq':
+            coef = np.random.normal(np.random.uniform(4, 8), 4, size=2)
+            data[i] = np.random.normal(4, 1)*np.cos(coef[0]*np.linspace(-1, 1, n))-np.random.normal(0, 3)*np.sin(coef[1]*np.linspace(-1, 1, n))
+            data[i] = data[i] - data[i, 0]
     if average:
         col_f = data[:, 0]*5/6 + data[:, -1]/6
         col_l = data[:, 0]/6 + data[:, -1]*5/6
@@ -55,26 +61,26 @@ def ifft_aug(coef_aug, n, f_depth):
         ns = dimension[0]
         coef = coef_aug[:ns//2] + coef_aug[ns//2:] * 1j
         coef_full = np.concatenate((coef, np.zeros(n//2-f_depth+1)))
-        return np.fft.irfft(coef_full)
+        return np.fft.irfft(coef_full, n=n)
     else:
         m, ns = dimension
         coef = coef_aug[:, :ns//2] + coef_aug[:, ns//2:] * 1j
         coef_full = np.concatenate((coef, np.zeros((m, n//2-f_depth+1))), axis=1)
-        return np.fft.irfft(coef_full)
+        return np.fft.irfft(coef_full, n=n)
 
 def mse(output, label):
     return np.linalg.norm(output-label)
 
 
 class sig_Dataset(Dataset):
-    def __init__(self, sample_num, n, f_depth, s_depth):
+    def __init__(self, sample_num, n, f_depth, s_depth, path='high_freq'):
         self.sample_num = sample_num
         self.n = n
         self.f_depth = f_depth
         # np.random.seed(1531)
         # self.path = fbm_generator(sample_num, n, hurst=0.97)
-        self.path = rand_sin_generator(sample_num, n, rand_num=15, average=False)
-        self.inputs = sig_AT(self.path, s_depth, time=np.linspace(0, 1, n))
+        self.path = rand_sin_generator(sample_num, n, path=path, average=False)
+        self.inputs = sig_AT(self.path, s_depth, time=np.linspace(-1, 1, n))
         self.labels = fft_aug(self.path, f_depth)
         self.inputs_dim = self.inputs.shape[1]
         self.labels_dim = self.labels.shape[1]
@@ -208,11 +214,22 @@ class Chebyshev(Jacobi):
     def __init__(self):
         super().__init__(-0.5, -0.5)
     
+    def P(self, n):
+        return lambda x: np.cos(n*np.arccos(x))
+    
     def ortho_factor(self, n):
         if n==0:
             return math.pi
         else:
             return math.pi/2
+        
+    def recurrence(self, n):
+        if n == 0:
+            return 1
+        elif n == 1:
+            return 1, 0
+        else:
+            return 2, 0, -1
 
 
 class Hermite(Orthogonal_poly):
