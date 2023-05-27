@@ -17,24 +17,50 @@ def fbm_generator(sample_num, n, hurst):
         data[i] = f.fbm()
     return data
 
-def rand_sin_generator(sample_num, n, path='high_freq', average=False):
+def rand_path_generator(sample_num, n, path='high_freq', average=False):
     data = np.zeros((sample_num, n))
     for i in range(sample_num):
-        # coef = np.random.randn(rand_num) * 5
-        # coef = np.random.randint(1, 10, size=rand_num) * np.pi
         if path == 'high_freq':
             coef = np.random.normal(np.random.uniform(10, 30), np.random.uniform(5, 10), size=np.random.randint(5, 20))
             data[i] = np.sum(np.sin(np.outer(coef, np.linspace(-1, 1, n))), axis=0) - data[i, 0]
         elif path == 'low_freq':
             coef = np.random.normal(np.random.uniform(4, 8), 4, size=2)
             data[i] = np.random.normal(4, 1)*np.cos(coef[0]*np.linspace(-1, 1, n))-np.random.normal(0, 3)*np.sin(coef[1]*np.linspace(-1, 1, n))
-            data[i] = data[i] - data[i, 0]
+        elif path == 'poly':
+            data[i] = random_poly_generator()(np.linspace(-1, 1, n))
+        elif path == 'trig':
+            data[i] = random_trig_generator()(np.linspace(-1, 1, n))
+        data[i] = data[i] - data[i, 0]
     if average:
         col_f = data[:, 0]*5/6 + data[:, -1]/6
         col_l = data[:, 0]/6 + data[:, -1]*5/6
         data[:, 0] = col_f
         data[:, -1] = col_l
     return data
+
+def random_poly_generator(seed=1531):
+    np.random.seed(seed)
+    power = np.random.randint(10, 20)
+    coef = np.random.normal(np.random.uniform(-1, 1), 2, size=power+1)
+    def func(t):
+        if isinstance(t, float):
+            t_arr = np.array([t**n for n in range(power+1)])
+            return np.sum(coef*t_arr)
+        else:
+            t_arr = np.array([t**n for n in range(power+1)])
+            return np.sum(coef.reshape(-1, 1)*t_arr, axis=0)
+    return func
+
+def random_trig_generator(seed=1531):
+    np.random.seed(seed)
+    freq = np.random.normal(np.random.uniform(-15, 15), 5, size=np.random.randint(5, 20))
+    pos = np.random.uniform(-1, 1)
+    def func(t):
+        if isinstance(t, float):
+            return sum(np.sin(freq*t+pos))
+        else:
+            return np.sum(np.sin(np.outer(freq, t)+pos), axis=0)
+    return func
 
 def sig_AT(path, s_depth, time=None):
     R, n = path.shape
@@ -77,9 +103,10 @@ class sig_Dataset(Dataset):
         self.sample_num = sample_num
         self.n = n
         self.f_depth = f_depth
-        # np.random.seed(1531)
-        # self.path = fbm_generator(sample_num, n, hurst=0.97)
-        self.path = rand_sin_generator(sample_num, n, path=path, average=False)
+        if path == 'fbm':
+            self.path = fbm_generator(sample_num, n, hurst=0.97)
+        else:
+            self.path = rand_path_generator(sample_num, n, path=path, average=False)
         self.inputs = sig_AT(self.path, s_depth, time=np.linspace(-1, 1, n))
         self.labels = fft_aug(self.path, f_depth)
         self.inputs_dim = self.inputs.shape[1]
