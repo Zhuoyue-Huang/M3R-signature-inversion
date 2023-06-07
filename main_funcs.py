@@ -48,7 +48,7 @@ def random_poly_generator(seed=1531):
             return np.sum(coef*t_arr)
         else:
             t_arr = np.array([t**n for n in range(power+1)])
-            return np.sum(coef.reshape(-1, 1)*t_arr, axis=0)
+            return np.sum(coef.reshape(1, -1)*t_arr.T, axis=1)
     return func
 
 def random_trig_generator(seed=1531):
@@ -180,7 +180,7 @@ class Orthogonal_poly(ABC):
 
     def sig2path(self, sig, N, t_grid):
         sig_map =  lambda t: sum([self.a_sig(sig, n)*self.P(n)(t) for n in range(N+1)])
-        return sig_map(t_grid) / self.weight(t_grid)
+        return sig_map(t_grid)
 
 
 class Jacobi(Orthogonal_poly):
@@ -262,8 +262,8 @@ class Chebyshev(Jacobi):
 class Hermite(Orthogonal_poly):
     def __init__(self, t0, eps, start_poiint=None):
         if start_poiint is None:
-            start_poiint = -np.inf
-        super().__init__(start_poiint, np.inf)
+            start_poiint = t0-10*eps
+        super().__init__(start_poiint, t0+10*eps)
         self.t0 = t0
         self.eps = eps
         self.weight = lambda t: np.exp(-(t-t0)**2/2/eps**2)
