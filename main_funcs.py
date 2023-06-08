@@ -99,12 +99,12 @@ def mse(output, label):
 
 
 class sig_Dataset(Dataset):
-    def __init__(self, sample_num, n, f_depth, s_depth, path='high_freq'):
+    def __init__(self, sample_num, n, f_depth, s_depth, path='high_freq', hurst=0.97):
         self.sample_num = sample_num
         self.n = n
         self.f_depth = f_depth
         if path == 'fbm':
-            self.path = fbm_generator(sample_num, n, hurst=0.97)
+            self.path = fbm_generator(sample_num, n, hurst=hurst)
         else:
             self.path = rand_path_generator(sample_num, n, path=path, average=False)
         self.inputs = sig_AT(self.path, s_depth, time=np.linspace(-1, 1, n))
