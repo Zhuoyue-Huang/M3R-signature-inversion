@@ -4,6 +4,7 @@ import numpy as np
 import numpy.polynomial.polynomial as nppoly
 from free_lie_algebra import *
 from numbers import Number
+import unittest
 
 class OrthoPoly(object):
 
@@ -129,15 +130,16 @@ class Sig2path(object):
         self.length = kwargs.get('length', 100)
         self.t_grid = kwargs.get('t_grid', np.linspace(self.intlims[0], self.intlims[1], self.length))
         self.intlims = [self.t_grid[0], self.t_grid[-1]]
+        self.length = len(self.t_grid)
 
-    def recover(self, path, N):
+    def recover(self, t, path, N):
         if self.poly_class.order is None or self.poly_class.order-1<N:
             self.poly_class.gen_poly(N)
         s = self.sig(path, N)
         sum_polynomial = nppoly.polyzero
         for n, p in enumerate(self.poly_class.poly[:N]):
             sum_polynomial = nppoly.polyadd(sum_polynomial, self._a_sig(s, n)*p)
-        return nppoly.polyval(self.t_grid, sum_polynomial)
+        return nppoly.polyval(t, sum_polynomial)
 
     def sig(self, path, N):
         if self.measure_args:
