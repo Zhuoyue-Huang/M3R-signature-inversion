@@ -4,7 +4,6 @@ import numpy as np
 import numpy.polynomial.polynomial as nppoly
 from free_lie_algebra import *
 from numbers import Number
-import unittest
 
 class OrthoPoly(object):
 
@@ -122,15 +121,15 @@ class OrthoPoly(object):
 
 class Sig2path(object):
     def __init__(self, measure, **kwargs):
-        self.measure = measure
-        self.measure_args = kwargs.get('margs', None)
-        self.poly_class = OrthoPoly(measure, **kwargs)
-
         self.intlims = kwargs.get('intlims', [-1, 1])
         self.length = kwargs.get('length', 100)
         self.t_grid = kwargs.get('t_grid', np.linspace(self.intlims[0], self.intlims[1], self.length))
         self.intlims = [self.t_grid[0], self.t_grid[-1]]
         self.length = len(self.t_grid)
+
+        self.measure = measure
+        self.measure_args = kwargs.get('margs', None)
+        self.poly_class = OrthoPoly(measure, intlims=self.intlims, margs=self.measure_args)
 
     def recover(self, t, path, N):
         if self.poly_class.order is None or self.poly_class.order-1<N:
