@@ -19,6 +19,7 @@ class OrthoPoly(object):
         self.beta = None
 
     def gen_poly(self, n):
+        """Generate orthonormal polynomials up to degree n."""
         self.order = n
 
         # zeroth polynomial
@@ -49,14 +50,14 @@ class OrthoPoly(object):
         # normalise polynomials
         self.poly[0] = self.poly[0]/np.sqrt(beta[0])
         for i in range(1, len(self.poly)):
-            # self.poly[i][self.poly[i]!=0] = self.normalise(self.poly[i][self.poly[i]!=0], beta[:i+1])
             self.poly[i] = self.poly[i] / np.prod(np.sqrt(beta[:i+1]))
     
     def a(self, path, N):
+        """Calculate the coefficients of orthogonal polynomials up to degree n for a path."""
         lim1, lim2 = self.intlims
-        a_arr = np.zeros(N)
-        if self.order is None or self.order-1<N:
-            self.gen_poly(N-1)
+        a_arr = np.zeros(N+1)
+        if self.order is None or self.order<N:
+            self.gen_poly(N)
         if callable(path):
             for n in range(N):
                 a_arr[n] = self.integrate(self.poly[n], lim1, lim2, path)
@@ -64,20 +65,22 @@ class OrthoPoly(object):
         else:
             t_grid = np.linspace(lim1, lim2, len(path))
             if self.measure_args:
-                for n in range(N):
+                for n in range(N+1):
                     a_arr[n] = np.trapz(path * nppoly.polyval(t_grid, self.poly[n]) * 
                                         self.measure(t_grid, self.measure_args), t_grid)
             else:
-                for n in range(N):
+                for n in range(N+1):
                     a_arr[n] = np.trapz(path * nppoly.polyval(t_grid, self.poly[n]) * 
                                         self.measure(t_grid), t_grid)
             return a_arr
 
     def path_eval(self, t, path, N):
-        recon = self.a(path, N) @ self.eval(t)[:N]
+        """Reconstruct path at t by orthogonal polynomials up to degree N."""
+        recon = self.a(path, N) @ self.eval(t)[:N+1]
         return recon
 
     def eval(self, t, **kwargs):
+        """Evaluate t for orthogonal polynomials up to its order."""
         n = kwargs.get('n', None)
         
         if n is None:
@@ -92,6 +95,7 @@ class OrthoPoly(object):
             return nppoly.polyval(t, self.poly[n])
 
     def integrate(self, p, lim1, lim2, other=None):
+        """Implement inner product."""
         if other is None:
             other = lambda t: 1.0
         if self.measure_args:
@@ -100,9 +104,6 @@ class OrthoPoly(object):
         else:
             return integrate.quad(lambda t: other(t) * nppoly.polyval(t, p) *
                     self.measure(t), lim1, lim2)[0]
-
-    def normalise(self, p, current_beta):
-        return np.sign(p)*np.exp(np.log(np.abs(p))-np.sum(np.log(current_beta))/2)
 
     def _get_alpha(self, p):
         p2 = nppoly.polypow(p, 2)
@@ -130,39 +131,68 @@ class Sig2path(object):
         self.measure = measure
         self.measure_args = kwargs.get('margs', None)
         self.poly_class = OrthoPoly(measure, intlims=self.intlims, margs=self.measure_args)
+        depth = kwargs.get('depth', None)
+        if depth:
+            self.poly_class.gen_poly(depth)
 
-    def recover(self, t, path, N):
+    def path2path(self, t, path, N, dim=1):
+        """Reconstruct path based on signature via orthogonal polynomials"""
         if self.poly_class.order is None or self.poly_class.order-1<N:
             self.poly_class.gen_poly(N)
         s = self.sig(path, N)
-        sum_polynomial = nppoly.polyzero
-        for n, p in enumerate(self.poly_class.poly[:N]):
-            sum_polynomial = nppoly.polyadd(sum_polynomial, self._a_sig(s, n)*p)
-        return nppoly.polyval(t, sum_polynomial)
+        return self.sig2path(t, N, s, dim=dim)
+
+    def sig2path(self, t, N, sig, dim=1):
+        """Invert signature via orthogonal polynomials."""
+        if self.poly_class.order is None or self.poly_class.order-1<N:
+            self.poly_class.gen_poly(N)
+        if isinstance(t, Number):
+            recon = np.zeros(dim)
+        else:
+            recon = np.zeros((dim, len(t)))
+        for i in range(dim):
+            sum_polynomial = nppoly.polyzero
+            coeff_arr = self._a_sig(sig, N, dim=i+1)
+            for n, p in enumerate(self.poly_class.poly[:N+1]):
+                sum_polynomial = nppoly.polyadd(sum_polynomial, coeff_arr[n]*p)
+            recon[i] = nppoly.polyval(t, sum_polynomial)
+        if dim==1:
+            return recon[0]
+        else:
+            return recon.T
 
     def sig(self, path, N):
+        """Compute N+2 truncated signature of time-augmented weighted path."""
         if self.measure_args:
             path_aug_time = np.c_[self.t_grid, path*self.measure(self.t_grid, self.measure_args)]
         else:
             path_aug_time = np.c_[self.t_grid, path*self.measure(self.t_grid)]
         return signature_of_path_iisignature(path_aug_time, N+2)
 
-    def _l(self, n):
+    def _l(self, n, dim=1, l_dict=None):
         if n==0:
             A0 = self.poly_class.poly[0][0]
-            return A0 * word2Elt('21') 
+            return A0 * word2Elt(f'{dim+1}1') 
         elif n==1:
             A1, B1 = self.poly_class.poly[1][::-1]
-            return (A1*self.intlims[0]+B1)*word2Elt('21') + A1*(word2Elt('211')+word2Elt('121'))
+            return (A1*self.intlims[0]+B1)*word2Elt(f'{dim+1}1') + A1*(word2Elt(f'{dim+1}11')+word2Elt(f'1{dim+1}1'))
         else:
             An = 1 / self.poly_class.beta[n]**0.5
             Bn = -self.poly_class.alpha[n-1] / self.poly_class.beta[n]**0.5
             Cn = -(self.poly_class.beta[n-1] / self.poly_class.beta[n])**0.5
-            l_prev, l_prev_prev = self._l(n-1), self._l(n-2)
+            if l_dict:
+                l_prev, l_prev_prev = l_dict[n-1], l_dict[n-2]
+            else:
+                l_prev, l_prev_prev = self._l(n-1, dim=dim), self._l(n-2, dim=dim)
             l_n = An*rightHalfShuffleProduct(word2Elt('1'), l_prev)\
                   + (An*self.intlims[0]+Bn)*l_prev\
                   + Cn*l_prev_prev
             return l_n
 
-    def _a_sig(self, sig, n):
-        return dotprod(self._l(n), sig)
+    def _a_sig(self, sig, N, dim=1):
+        l_dict = {}
+        coeff_arr = np.zeros(N+1)
+        for n in range(N+1):
+            l_dict[n] = self._l(n, dim=dim, l_dict=l_dict)
+            coeff_arr[n] = dotprod(l_dict[n], sig)
+        return coeff_arr
