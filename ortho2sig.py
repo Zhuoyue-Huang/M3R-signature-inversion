@@ -142,7 +142,7 @@ class Sig2path(object):
         s = self.sig(path, N)
         return self.sig2path(t, N, s, dim=dim)
 
-    def sig2path(self, t, N, sig, dim=1):
+    def sig2path(self, t, N, sig, dim=1, return_func=False):
         """Invert signature via orthogonal polynomials."""
         if self.poly_class.order is None or self.poly_class.order-1<N:
             self.poly_class.gen_poly(N)
@@ -150,16 +150,24 @@ class Sig2path(object):
             recon = np.zeros(dim)
         else:
             recon = np.zeros((dim, len(t)))
+        if return_func:
+            recon = []
         for i in range(dim):
             sum_polynomial = nppoly.polyzero
             coeff_arr = self._a_sig(sig, N, dim=i+1)
             for n, p in enumerate(self.poly_class.poly[:N+1]):
                 sum_polynomial = nppoly.polyadd(sum_polynomial, coeff_arr[n]*p)
-            recon[i] = nppoly.polyval(t, sum_polynomial)
-        if dim==1:
-            return recon[0]
+            if return_func:
+                recon.append(sum_polynomial)
+            else:
+                recon[i] = nppoly.polyval(t, sum_polynomial)
+        if return_func:
+            return recon
         else:
-            return recon.T
+            if dim==1:
+                return recon[0]
+            else:
+                return recon.T
 
     def sig(self, path, N):
         """Compute N+2 truncated signature of time-augmented weighted path."""
